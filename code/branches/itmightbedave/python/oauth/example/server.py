@@ -19,25 +19,26 @@ class MockOAuthDataStore(oauth.OAuthDataStore):
         self.nonce = 'nonce'
 
     def lookup_consumer(self, key):
-        if key == self.consumer.key:
-            return self.consumer
-        return None
+        return self.consumer if key == self.consumer.key else None
 
     def lookup_token(self, token_type, token):
-        token_attrib = getattr(self, '%s_token' % token_type)
+        token_attrib = getattr(self, f'{token_type}_token')
         if token == token_attrib.key:
             return token_attrib
         return None
 
     def lookup_nonce(self, oauth_consumer, oauth_token, nonce):
-        if oauth_token and oauth_consumer.key == self.consumer.key and (oauth_token.key == self.request_token.key or oauth_token.key == self.access_token.key) and nonce == self.nonce:
+        if (
+            oauth_token
+            and oauth_consumer.key == self.consumer.key
+            and oauth_token.key in [self.request_token.key, self.access_token.key]
+            and nonce == self.nonce
+        ):
             return self.nonce
         return None
 
     def fetch_request_token(self, oauth_consumer):
-        if oauth_consumer.key == self.consumer.key:
-            return self.request_token
-        return None
+        return self.request_token if oauth_consumer.key == self.consumer.key else None
 
     def fetch_access_token(self, oauth_consumer, oauth_token):
         if oauth_consumer.key == self.consumer.key and oauth_token.key == self.request_token.key:

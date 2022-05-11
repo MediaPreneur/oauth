@@ -32,7 +32,7 @@ def generate_timestamp():
 # util function: nonce
 # pseudorandom number
 def generate_nonce(length=8):
-    return ''.join(str(random.randint(0, 9)) for i in range(length))
+    return ''.join(str(random.randint(0, 9)) for _ in range(length))
 
 # OAuthConsumer is a data type that represents the identity of the Consumer
 # via its shared secret with the Service Provider.
@@ -101,16 +101,10 @@ class OAuthToken(object):
         return OAuthToken(key, secret, expires, session, session_expires)
     
     def isExpired(self):
-        if self.expires and self.expires < int(time.time()):
-            return True
-        else:
-            return False
+        return bool(self.expires and self.expires < int(time.time()))
         
     def session_expired(self):
-        if self.session_expires and self.session_expires < int(time.time()):
-            return True
-        else:
-            return False
+        return bool(self.session_expires and self.session_expires < int(time.time()))
 
     def __str__(self):
         return self.to_string()
@@ -145,19 +139,14 @@ class OAuthRequest(object):
         try:
             return self.parameters[parameter]
         except:
-            raise OAuthError('Parameter not found: %s' % parameter)
+            raise OAuthError(f'Parameter not found: {parameter}')
 
     def _get_timestamp_nonce(self):
         return self.get_parameter('oauth_timestamp'), self.get_parameter('oauth_nonce')
 
     # get any non-oauth parameters
     def get_nonoauth_parameters(self):
-        parameters = {}
-        for k, v in self.parameters.iteritems():
-            # ignore oauth parameters
-            if k.find('oauth_') < 0:
-                parameters[k] = v
-        return parameters
+        return {k: v for k, v in self.parameters.iteritems() if k.find('oauth_') < 0}
 
     # serialize as a header for an HTTPAuth request
     def to_header(self, realm=''):
@@ -170,11 +159,14 @@ class OAuthRequest(object):
 
     # serialize as post data for a POST request
     def to_postdata(self):
-        return '&'.join('%s=%s' % (escape(str(k)), escape(str(v))) for k, v in self.parameters.iteritems())
+        return '&'.join(
+            f'{escape(str(k))}={escape(str(v))}'
+            for k, v in self.parameters.iteritems()
+        )
 
     # serialize as a url for a GET request
     def to_url(self):
-        return '%s?%s' % (self.get_normalized_http_url(), self.to_postdata())
+        return f'{self.get_normalized_http_url()}?{self.to_postdata()}'
 
     # return a string that consists of all the parameters that need to be signed
     def get_normalized_parameters(self):
@@ -188,7 +180,7 @@ class OAuthRequest(object):
         # sort lexicographically, first after key, then after value
         key_values.sort()
         # combine key value pairs in string and escape
-        return '&'.join('%s=%s' % (escape(str(k)), escape(str(v))) for k, v in key_values)
+        return '&'.join(f'{escape(str(k))}={escape(str(v))}' for k, v in key_values)
 
     # just uppercases the http method
     def get_normalized_http_method(self):
@@ -197,8 +189,7 @@ class OAuthRequest(object):
     # parses the url and rebuilds it to be scheme://host/path
     def get_normalized_http_url(self):
         parts = urlparse.urlparse(self.http_url)
-        url_string = '%s://%s%s' % (parts[0], parts[1], parts[2]) # scheme, netloc, path
-        return url_string
+        return f'{parts[0]}://{parts[1]}{parts[2]}'
         
     # set the signature parameter to the result of build_signature
     def sign_request(self, signature_method, consumer, token):
@@ -256,14 +247,14 @@ class OAuthRequest(object):
             'oauth_version': OAuthRequest.version,
         }
 
-        defaults.update(parameters)
+        defaults |= parameters
         parameters = defaults
 
         if token:
             parameters['oauth_token'] = token.key
             if token.session_handle:
                 parameters['oauth_session_handle'] = token.session_handle
-        
+
 
         return OAuthRequest(http_method, http_url, parameters)
 
@@ -348,8 +339,7 @@ class OAuthServer(object):
         # get the request token
         token = self._get_token(oauth_request, 'request')
         self._check_signature(oauth_request, consumer, token)
-        new_token = self.data_store.fetch_access_token(consumer, token)
-        return new_token
+        return self.data_store.fetch_access_token(consumer, token)
     
     def refresh_access_token(self, oauth_request):
         version = self._get_version(oauth_request)
@@ -358,9 +348,8 @@ class OAuthServer(object):
         token = self._get_token(oauth_request, "access")
         self._check_signature(oauth_request, consumer, token)
         self._check_session(oauth_request, consumer, token)
-        
-        new_token = self.data_store.renew_access_token(consumer, token)
-        return new_token
+
+        return self.data_store.renew_access_token(consumer, token)
 
     # verify an api call, checks all the parameters
     def verify_request(self, oauth_request):
@@ -392,7 +381,10 @@ class OAuthServer(object):
         except:
             raise OAuthError('oauth_problem=parameter_absent&oauth_parameters_absent=oauth_version')
         if version and version != self.version:
-            raise OAuthError('oauth_problem=version_rejected&oauth_acceptable_verions=%s' % str(self.version))
+            raise OAuthError(
+                f'oauth_problem=version_rejected&oauth_acceptable_verions={str(self.version)}'
+            )
+
         return version
 
     # figure out the signature with some defaults
@@ -454,9 +446,7 @@ class OAuthServer(object):
             raise OAuthError('oauth_problem=timestamp_refused&oauth_acceptable_timestamps=%d-%d' % (now - self.timestamp_threshold / 2 , now + self.timestamp_threshold / 2))
 
     def _check_nonce(self, consumer, token, nonce):
-        # verify that the nonce is uniqueish
-        nonce = self.data_store.lookup_nonce(consumer, token, nonce)
-        if nonce:
+        if nonce := self.data_store.lookup_nonce(consumer, token, nonce):
             raise OAuthError('oauth_problem=nonce_used')
         
     def _check_session(self, oauth_request, consumer, token):
@@ -553,7 +543,7 @@ class OAuthSignatureMethod_HMAC_SHA1(OAuthSignatureMethod):
             escape(oauth_request.get_normalized_parameters()),
         )
 
-        key = '%s&' % escape(consumer.secret)
+        key = f'{escape(consumer.secret)}&'
         if token:
             key += escape(token.secret)
         raw = '&'.join(sig)
@@ -581,7 +571,7 @@ class OAuthSignatureMethod_PLAINTEXT(OAuthSignatureMethod):
 
     def build_signature_base_string(self, oauth_request, consumer, token):
         # concatenate the consumer key and secret
-        sig = escape(consumer.secret) + '&'
+        sig = f'{escape(consumer.secret)}&'
         if token:
             sig = sig + escape(token.secret)
         return sig

@@ -63,15 +63,12 @@ class OAuthSignatureMethod_RSA_SHA1(oauth.OAuthSignatureMethod_HMAC_SHA1):
     # Pull the public key from the certificate
     publickey = keyfactory.parsePEMKey(cert, public=True)
 
-    # Check the signature
-    ok = publickey.hashAndVerify(decoded_sig, base_string)
-
-    return ok
+    return publickey.hashAndVerify(decoded_sig, base_string)
 
 
 class TestOAuthSignatureMethod_RSA_SHA1(OAuthSignatureMethod_RSA_SHA1):
   def _fetch_public_cert(self, oauth_request):
-    cert = """
+    return """
 -----BEGIN CERTIFICATE-----
 MIIBpjCCAQ+gAwIBAgIBATANBgkqhkiG9w0BAQUFADAZMRcwFQYDVQQDDA5UZXN0
 IFByaW5jaXBhbDAeFw03MDAxMDEwODAwMDBaFw0zODEyMzEwODAwMDBaMBkxFzAV
@@ -84,10 +81,9 @@ DQEBBQUAA4GBAGZLPEuJ5SiJ2ryq+CmEGOXfvlTtEL2nuGtr9PewxkgnOjZpUy+d
 WpkUQDIDJEoFUzKMVuJf4KO/FJ345+BNLGgbJ6WujreoM1X/gYfdnJ/J
 -----END CERTIFICATE-----
 """
-    return cert
 
   def _fetch_private_cert(self, oauth_request):
-    cert = """
+    return """
 -----BEGIN PRIVATE KEY-----
 MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBALRiMLAh9iimur8V
 A7qVvdqxevEuUkW4K+2KdMXmnQbG9Aa7k7eBjK1S+0LYmVjPKlJGNXHDGuy5Fw/d
@@ -105,4 +101,3 @@ AO/0isr/3aa6O6NLQxISLKcPDk2NOccAfS/xOtfOz4sJYM3+Bs4Io9+dZGSDCA54
 Lw03eHTNQghS0A==
 -----END PRIVATE KEY-----
 """
-    return cert
